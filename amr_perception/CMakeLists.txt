@@ -1,32 +1,27 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(amr_bugs)
-
+project(amr_perception)
 # Load catkin and all dependencies required for this package
+
+find_package(Boost REQUIRED 
+  COMPONENTS 
+    thread
+    filesystem
+)
 
 find_package(catkin REQUIRED
   COMPONENTS
     roscpp
-    rospy
-    smach
-    smach_ros
-    smach_viewer
-    dynamic_reconfigure
-    actionlib
-    tf
-    std_srvs
     geometry_msgs
+    dynamic_reconfigure
     amr_msgs
     amr_srvs
-    amr_stage
-    amr_perception
-    amr_navigation
+    sensor_msgs
 )
 
-include_directories(include
-  include
-  cfg/cpp
+include_directories(include 
   ${Boost_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
+  cfg/cpp
 )
 
 # Set the build type.  Options are:
@@ -37,13 +32,11 @@ include_directories(include
 #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
 set(ROS_BUILD_TYPE RelWithDebInfo)
 
-catkin_python_setup()
-
 # add dynamic reconfigure API
 generate_dynamic_reconfigure_options(
-  cfg/Wallfollower.cfg
+  cfg/LaserRepublisher.cfg
+  cfg/ObstacleDetector.cfg
 )
-
 
 # set the default path for built executables to the "bin" directory
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
@@ -69,26 +62,48 @@ add_definitions(-Wno-error=unknown-pragmas)
 add_definitions(-Wno-unknown-pragmas)
 add_definitions(-Wno-deprecated)
 
+#...: target executables :....................................................
+
+add_executable(obstacle_detector
+  nodes/obstacle_detector.cpp
+)
+
+add_dependencies(obstacle_detector 
+  ${PROJECT_NAME}_gencfg
+  ${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(obstacle_detector 
+  ${Boost_LIBRARIES}
+  ${catkin_LIBRARIES}
+)
+
+#add_executable(obstacle_detector_youbot_simulation
+#  nodes/obstacle_detector_youbot_simulation.cpp
+#)
+
+add_executable(laser_republisher
+  nodes/laser_republisher.cpp
+)
+
+target_link_libraries(laser_republisher 
+  ${Boost_LIBRARIES}
+  ${catkin_LIBRARIES}
+)
+
+add_dependencies(laser_republisher 
+  ${PROJECT_NAME}_gencfg
+  ${catkin_EXPORTED_TARGETS}
+)
+
+## Generate added messages and services with any dependencies listed here
+#generate_messages(
+#    DEPENDENCIES geometry_msgs std_msgs
+#)
 
 catkin_package(
-    DEPENDS
-    CATKIN_DEPENDS
-      roscpp
-      rospy
-      smach
-      smach_ros
-      smach_viewer
-      dynamic_reconfigure
-      actionlib
-      tf
-      std_srvs
-      geometry_msgs
-      amr_msgs
-      amr_srvs
-      amr_stage
-      amr_perception
-      amr_navigation
+    DEPENDS roscpp geometry_msgs dynamic_reconfigure amr_msgs amr_srvs sensor_msgs
+    CATKIN_DEPENDS roscpp geometry_msgs dynamic_reconfigure amr_msgs amr_srvs sensor_msgs
     INCLUDE_DIRS
     LIBRARIES
 )
-
