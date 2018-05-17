@@ -44,27 +44,69 @@
 #           self.ln_two = [p1, p2]
 #           self.ln_three = Line.from_points([p1, p2]) # if you are using 'planar'
 
+from planar import Point, Vec2
+from planar.c import Line
+import rospy
+
+#                        Class Variables
+#                       
+#
+# @c wp_goal_point      : Stores goal coordinates
+# @c side               : Stores side
+# @c leave_point_list   : Stores coordinates of all the points where bug left the wall
+# @c begin_point_list   : Stores coordinates of all the points where bug started wall follow
+# @c now                : Stores rostime (used to avoid multiple storage of same point)
+# @c wp_start_wall_point: Stores last point where the bug started following the wall
+# @c ln_goal_line       : Stores straight line path to goal
+# @c wp_current_point   : Stores current position as a point
+
+
 class BugBrain:
 
     TOLERANCE = 0.3
 
     def __init__(self, goal_x, goal_y, side):
-        pass
+		self.side=side
+        self.wp_goal_point=Vec2(goal_x,goal_y)
+        self.leave_point_list=[]
+        self.begin_point_list=[]
+        self.now = rospy.get_rostime()
+        
 
     def follow_wall(self, x, y, theta):
         """
         This function is called when the state machine enters the wallfollower
         state.
         """
-        # compute and store necessary variables
-        pass
+        self.wp_start_wall_point=Vec2(x,y)
+        flag=True
+		
+		for x in range(len(self.begin_point_list)):
+            wp_point=self.begin_point_list[x][0]
+            if abs(wp_point.distance_to( self.wp_start_wall_point)<=1):
+                flag=False
+     
+        if (flag==True) :     
+            rospy.loginfo("Adding first point to the list")
+            self.begin_point_list.append((self.wp_start_wall_point,0))
+        
+        
+        rospy.loginfo("Initialize Wall Follow.")
+        self.now = rospy.get_rostime()
+		
+		if len(self.leave_point_list)<1:
+            rospy.loginfo(" Line plot")
+            self.ln_goal_line=Line.from_points([self.wp_start_wall_point, self.wp_goal_point])
+			pass
 
     def leave_wall(self, x, y, theta):
         """
         This function is called when the state machine leaves the wallfollower
         state.
         """
-        # compute and store necessary variables
+		#Storing points
+		
+        self.wp_left_wall_point=Vec2(x,y)
         pass
 
     def is_goal_unreachable(self, x, y, theta):
@@ -72,6 +114,31 @@ class BugBrain:
         This function is regularly called from the wallfollower state to check
         the brain's belief about whether the goal is unreachable.
         """
+		
+		current_point=Vec2(x,y)
+                                    
+        
+         #avoiding storing same point.
+       
+        next_time = rospy.get_rostime()
+        time_diff=abs(self.now.secs-next_time.secs)
+
+        
+            
+        
+        for x in range(len(self.begin_point_list)):
+            wp_point=self.begin_point_list[x][0]
+            if abs(wp_point.distance_to(current_point)<=self.TOLERANCE and time_diff>20):
+                self.now = rospy.get_rostime()
+                self.begin_point_list[x]=(self.begin_point_list[x][0],self.begin_point_list[x][1]+1)
+                #self.count_turns=self.count_turns+1
+                rospy.loginfo("Total Number of Approach Wall:")
+                rospy.loginfo(len(self.begin_point_list))    
+                rospy.loginfo("Max Lap:")
+                rospy.loginfo(self.begin_point_list[x][1])
+                if (self.begin_point_list[x][1]>=2):
+                    return True
+		
         return False
 
     def is_time_to_leave_wall(self, x, y, theta):
@@ -80,6 +147,31 @@ class BugBrain:
         the brain's belief about whether it is the right time (or place) to
         leave the wall and move straight to the goal.
         """
+		
+		self.wp_current_point=Vec2(x,y)
+        
+        """
+        When bug reaches goal line during wall follow, check if that path has been taken
+        earlier. 
+        If taken, proceed with wall follow. 
+        Else, leave wall and take staright line to goal
+        """
+        
+        if (abs(self.ln_goal_line.distance_to(self.wp_current_point))<=self.TOLERANCE and 
+                    abs(self.wp_current_point.distance_to(self.wp_start_wall_point))>1):
+            flag=True
+            rospy.loginfo("Checking previous paths taken..")
+            for i in range(len(self.leave_point_list)):
+                wp_point=self.leave_point_list[i]
+
+                if (abs(wp_point.distance_to(self.wp_current_point))<=1):
+                    flag=False
+                    break                    
+            if(flag==True):
+                rospy.loginfo("Leaving wall")
+                self.leave_point_list.append(self.wp_current_point)
+                return True
+		
         return False
 
 #==============================================================================
